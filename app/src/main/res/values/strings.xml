@@ -37,11 +37,11 @@
     <string name="settings_privacy_body">Rug Player has no ad SDK, no analytics, and no account system. The only network use is the optional Send/Receive screen, which transfers a file directly to another phone on the same Wi-Fi — never through a server of ours.</string>
 
     <string name="action_transfer">Send to a nearby phone</string>
-    <string name="transfer_title">Send & Receive</string>
+    <string name="transfer_title">Send &amp; Receive</string>
     <string name="transfer_send_tab">Send</string>
     <string name="transfer_receive_tab">Receive</string>
     <string name="transfer_send_pick">Choose a video to send</string>
-    <string name="transfer_send_hint">On the other phone, open Rug Player → Send & Receive → Receive, and enter this address. Both phones need to be on the same Wi-Fi network.</string>
+    <string name="transfer_send_hint">On the other phone, open Rug Player → Send &amp; Receive → Receive, and enter this address. Both phones need to be on the same Wi-Fi network.</string>
     <string name="transfer_send_stop">Stop sending</string>
     <string name="transfer_receive_hint">Paste or type the address shown on the sending phone.</string>
     <string name="transfer_receive_action">Receive</string>
