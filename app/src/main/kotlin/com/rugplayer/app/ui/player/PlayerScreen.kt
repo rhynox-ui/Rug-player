@@ -427,11 +427,20 @@ private fun ForceOrientationForPlayback(isPortraitVideo: Boolean?) {
     }
 
     LaunchedEffect(isPortraitVideo) {
-        activity.requestedOrientation = if (isPortraitVideo == true) {
+        val target = if (isPortraitVideo == true) {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
         } else {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
+        if (activity.requestedOrientation == target) return@LaunchedEffect
+
+        // Forcing the orientation change in the same composition pass that
+        // creates PlayerView's video surface races the surface attachment —
+        // the window rotates/relays out while the surface is still being
+        // set up, and it can end up never bound (audio plays, frame never
+        // renders). Give the surface a moment to attach first.
+        delay(180)
+        activity.requestedOrientation = target
     }
 }
 
