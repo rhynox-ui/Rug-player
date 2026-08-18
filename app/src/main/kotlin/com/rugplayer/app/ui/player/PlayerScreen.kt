@@ -7,6 +7,7 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.util.Rational
+import android.view.LayoutInflater
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -45,6 +46,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.rugplayer.app.AppGraph
+import com.rugplayer.app.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -147,8 +149,8 @@ fun PlayerScreen(
             .background(Color.Black),
     ) {
         AndroidView(
-            factory = {
-                PlayerView(it).apply {
+            factory = { ctx ->
+                (LayoutInflater.from(ctx).inflate(R.layout.player_view, null) as PlayerView).apply {
                     useController = false
                     setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
                 }
