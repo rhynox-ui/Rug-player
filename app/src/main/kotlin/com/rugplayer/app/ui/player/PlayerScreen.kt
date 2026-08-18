@@ -174,6 +174,7 @@ fun PlayerScreen(
             firstFrameRendered = state.firstFrameRendered,
             isPortraitVideo = state.isPortraitVideo,
             errorMessage = state.errorMessage,
+            videoTrackDiagnostic = state.videoTrackDiagnostic,
             modifier = Modifier.align(Alignment.TopStart),
         )
 
@@ -367,12 +368,14 @@ private fun DiagnosticsBadge(
     firstFrameRendered: Boolean,
     isPortraitVideo: Boolean?,
     errorMessage: String?,
+    videoTrackDiagnostic: String?,
     modifier: Modifier = Modifier,
 ) {
     val text = when {
         errorMessage != null -> "Player error: $errorMessage"
         firstFrameRendered -> "frame rendered ✓ (surface OK — if screen is still black, this is a compositing issue)"
         isPortraitVideo != null -> "video detected, size known, no frame rendered yet (renderer/surface issue)"
+        videoTrackDiagnostic != null -> videoTrackDiagnostic
         else -> "waiting for video track…"
     }
     val color = if (errorMessage != null) Color.Red else Color.Yellow

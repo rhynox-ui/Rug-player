@@ -53,6 +53,7 @@ data class PlayerUiState(
     val streamTitle: String? = null,
     val firstFrameRendered: Boolean = false,
     val errorMessage: String? = null,
+    val videoTrackDiagnostic: String? = null,
 ) {
     val current: VideoItem? get() = queue.getOrNull(currentIndex)
 }
@@ -85,7 +86,15 @@ class PlayerViewModel(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val newIndex = controller?.currentMediaItemIndex ?: return
-            _uiState.update { it.copy(currentIndex = newIndex, positionMs = 0, isPortraitVideo = null) }
+            _uiState.update {
+                it.copy(
+                    currentIndex = newIndex,
+                    positionMs = 0,
+                    isPortraitVideo = null,
+                    firstFrameRendered = false,
+                    videoTrackDiagnostic = null,
+                )
+            }
             refreshSubtitleTracks()
         }
 
@@ -104,6 +113,18 @@ class PlayerViewModel(
 
         override fun onTracksChanged(tracks: Tracks) {
             refreshSubtitleTracks()
+
+            val videoGroup = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_VIDEO }
+            val videoDiagnostic = if (videoGroup == null) {
+                "no video track in file"
+            } else {
+                val format = videoGroup.getTrackFormat(0)
+                val supported = videoGroup.isTrackSupported(0)
+                "video codec: ${format.sampleMimeType ?: "unknown"} " +
+                    "(${format.codecs ?: "?"}) ${format.width}x${format.height} — " +
+                    if (supported) "decoder available" else "NO DECODER on this device"
+            }
+            _uiState.update { it.copy(videoTrackDiagnostic = videoDiagnostic) }
         }
 
         override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
