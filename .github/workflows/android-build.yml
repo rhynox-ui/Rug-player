@@ -82,7 +82,10 @@ jobs:
 
       - name: Decode keystore
         if: steps.check.outputs.configured == 'true'
-        run: echo "${{ secrets.RUG_KEYSTORE_BASE64 }}" | base64 -d > rug-player-upload.jks
+        # app/build.gradle.kts resolves a relative RUG_KEYSTORE_PATH against
+        # the app module's directory (Gradle's file() there), not the repo
+        # root — decode it there to match.
+        run: echo "${{ secrets.RUG_KEYSTORE_BASE64 }}" | base64 -d > app/rug-player-upload.jks
 
       - name: Assemble release bundle
         if: steps.check.outputs.configured == 'true'
