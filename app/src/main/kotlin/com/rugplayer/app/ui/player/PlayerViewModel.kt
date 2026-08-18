@@ -51,6 +51,8 @@ data class PlayerUiState(
     val abRepeatEndMs: Long? = null,
     val isPortraitVideo: Boolean? = null,
     val streamTitle: String? = null,
+    val firstFrameRendered: Boolean = false,
+    val errorMessage: String? = null,
 ) {
     val current: VideoItem? get() = queue.getOrNull(currentIndex)
 }
@@ -90,6 +92,14 @@ class PlayerViewModel(
         override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
             if (videoSize.width == 0 || videoSize.height == 0) return
             _uiState.update { it.copy(isPortraitVideo = videoSize.height > videoSize.width) }
+        }
+
+        override fun onRenderedFirstFrame() {
+            _uiState.update { it.copy(firstFrameRendered = true) }
+        }
+
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            _uiState.update { it.copy(errorMessage = "${error.errorCodeName}: ${error.message}") }
         }
 
         override fun onTracksChanged(tracks: Tracks) {

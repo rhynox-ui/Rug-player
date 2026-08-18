@@ -16,10 +16,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Brightness6
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -160,6 +165,16 @@ fun PlayerScreen(
                 playerView.resizeMode = resizeModes[resizeModeIndex]
             },
             modifier = Modifier.fillMaxSize(),
+        )
+
+        // Temporary on-screen diagnostics for the black-screen report — tells
+        // us from a bug report alone whether frames are reaching the surface
+        // at all, without needing device logs.
+        DiagnosticsBadge(
+            firstFrameRendered = state.firstFrameRendered,
+            isPortraitVideo = state.isPortraitVideo,
+            errorMessage = state.errorMessage,
+            modifier = Modifier.align(Alignment.TopStart),
         )
 
         GestureOverlay(
@@ -345,6 +360,31 @@ private fun queryDisplayName(context: android.content.Context, uri: Uri): String
         if (nameIndex >= 0 && it.moveToFirst()) return it.getString(nameIndex)
     }
     return null
+}
+
+@Composable
+private fun DiagnosticsBadge(
+    firstFrameRendered: Boolean,
+    isPortraitVideo: Boolean?,
+    errorMessage: String?,
+    modifier: Modifier = Modifier,
+) {
+    val text = when {
+        errorMessage != null -> "Player error: $errorMessage"
+        firstFrameRendered -> "frame rendered ✓ (surface OK — if screen is still black, this is a compositing issue)"
+        isPortraitVideo != null -> "video detected, size known, no frame rendered yet (renderer/surface issue)"
+        else -> "waiting for video track…"
+    }
+    val color = if (errorMessage != null) Color.Red else Color.Yellow
+    Text(
+        text = text,
+        color = color,
+        style = MaterialTheme.typography.labelSmall,
+        modifier = modifier
+            .statusBarsPadding()
+            .background(Color.Black.copy(alpha = 0.7f))
+            .padding(6.dp),
+    )
 }
 
 /**
