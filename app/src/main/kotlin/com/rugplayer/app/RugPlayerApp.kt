@@ -4,6 +4,7 @@ import android.app.Application
 import coil.Coil
 import coil.ImageLoader
 import coil.decode.VideoFrameDecoder
+import com.rugplayer.app.thumbnail.VideoThumbnailFetcher
 
 class RugPlayerApp : Application() {
     lateinit var graph: AppGraph
@@ -15,7 +16,14 @@ class RugPlayerApp : Application() {
 
         Coil.setImageLoader(
             ImageLoader.Builder(this)
-                .components { add(VideoFrameDecoder.Factory()) }
+                .components {
+                    // Primary: the OS's own thumbnail generator (same one Files/
+                    // Gallery use) — far more resilient than decoding a frame
+                    // ourselves. Falls through to manual frame decoding below
+                    // only if that's unavailable for a given file.
+                    add(VideoThumbnailFetcher.Factory(this@RugPlayerApp))
+                    add(VideoFrameDecoder.Factory())
+                }
                 .build()
         )
     }

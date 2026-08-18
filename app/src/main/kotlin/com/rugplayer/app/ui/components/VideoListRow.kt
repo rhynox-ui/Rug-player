@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -56,6 +58,15 @@ fun VideoListRow(
                 .clip(RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
+            Icon(
+                Icons.Filled.Movie,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth()
+                    .padding(20.dp),
+            )
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(video.uri)
@@ -63,7 +74,7 @@ fun VideoListRow(
                     .crossfade(true)
                     .build(),
                 contentDescription = video.title,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxSize(),
             )
             Box(
                 modifier = Modifier

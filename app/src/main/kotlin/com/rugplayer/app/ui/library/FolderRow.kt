@@ -44,6 +44,12 @@ fun FolderRow(folder: FolderSummary, onClick: () -> Unit, modifier: Modifier = M
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
+            Icon(
+                Icons.Filled.Folder,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(if (folder.previewUri != null) 12.dp else 0.dp),
+            )
             if (folder.previewUri != null) {
                 AsyncImage(
                     model = ImageRequest.Builder(context)
@@ -54,8 +60,6 @@ fun FolderRow(folder: FolderSummary, onClick: () -> Unit, modifier: Modifier = M
                     contentDescription = null,
                     modifier = Modifier.size(52.dp),
                 )
-            } else {
-                Icon(Icons.Filled.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             }
         }
 

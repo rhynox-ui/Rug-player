@@ -21,6 +21,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -190,6 +192,15 @@ private fun StatusTile(status: StatusItem, saved: Boolean, onSave: () -> Unit) {
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(enabled = !saved, onClick = onSave),
     ) {
+        Icon(
+            if (status.isVideo) Icons.Filled.Movie else Icons.Filled.Image,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxSize()
+                .padding(28.dp),
+        )
         AsyncImage(
             model = ImageRequest.Builder(context)
                 .data(status.uri)
