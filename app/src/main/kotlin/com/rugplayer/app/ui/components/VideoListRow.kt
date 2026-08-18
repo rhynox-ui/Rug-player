@@ -1,5 +1,6 @@
 package com.rugplayer.app.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -29,6 +30,7 @@ import coil.request.ImageRequest
 import coil.request.videoFrameMillis
 import com.rugplayer.app.data.model.VideoItem
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VideoListRow(
     video: VideoItem,
