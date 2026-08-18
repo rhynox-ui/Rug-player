@@ -4,15 +4,23 @@ import android.net.Uri
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import com.rugplayer.app.AppGraph
+import com.rugplayer.app.player.NowPlaying
 import com.rugplayer.app.ui.library.FolderVideosScreen
 import com.rugplayer.app.ui.library.LibraryScreen
+import com.rugplayer.app.ui.player.FloatingMiniPlayer
 import com.rugplayer.app.ui.player.PlayerScreen
 import com.rugplayer.app.ui.settings.SettingsScreen
 import com.rugplayer.app.ui.statussaver.StatusSaverScreen
@@ -33,18 +41,36 @@ object Routes {
     fun folder(name: String) = "folder/${Uri.encode(name)}"
 }
 
+private fun routeFor(info: NowPlaying): String? = when {
+    info.videoId != null -> Routes.player(info.videoId)
+    info.streamUrl != null -> Routes.playerStream(info.streamUrl, info.title)
+    else -> null
+}
+
 @Composable
-fun RugNavHost(graph: AppGraph) {
+fun RugNavHost(graph: AppGraph, openNowPlayingSignal: Int = 0) {
     val navController = rememberNavController()
 
-    NavHost(
-        navController = navController,
-        startDestination = Routes.LIBRARY,
-        enterTransition = { fadeIn(tween(150)) },
-        exitTransition = { fadeOut(tween(150)) },
-        popEnterTransition = { fadeIn(tween(150)) },
-        popExitTransition = { fadeOut(tween(150)) },
-    ) {
+    LaunchedEffect(openNowPlayingSignal) {
+        if (openNowPlayingSignal == 0) return@LaunchedEffect
+        val info = graph.playbackController.nowPlaying.value ?: return@LaunchedEffect
+        val route = routeFor(info) ?: return@LaunchedEffect
+        navController.navigate(route) { launchSingleTop = true }
+    }
+
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val onPlayerScreen = backStackEntry?.destination?.route == Routes.PLAYER ||
+        backStackEntry?.destination?.route == Routes.PLAYER_STREAM
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavHost(
+            navController = navController,
+            startDestination = Routes.LIBRARY,
+            enterTransition = { fadeIn(tween(150)) },
+            exitTransition = { fadeOut(tween(150)) },
+            popEnterTransition = { fadeIn(tween(150)) },
+            popExitTransition = { fadeOut(tween(150)) },
+        ) {
         composable(Routes.LIBRARY) {
             LibraryScreen(
                 graph = graph,
@@ -119,6 +145,16 @@ fun RugNavHost(graph: AppGraph) {
             SettingsScreen(
                 graph = graph,
                 onBack = { navController.popBackStack() },
+            )
+        }
+    }
+
+        if (!onPlayerScreen) {
+            FloatingMiniPlayer(
+                playbackController = graph.playbackController,
+                onExpand = { info ->
+                    routeFor(info)?.let { route -> navController.navigate(route) { launchSingleTop = true } }
+                },
             )
         }
     }

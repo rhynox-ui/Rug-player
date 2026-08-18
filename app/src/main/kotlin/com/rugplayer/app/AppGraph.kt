@@ -5,6 +5,7 @@ import com.rugplayer.app.data.db.AppDatabase
 import com.rugplayer.app.data.prefs.SettingsRepository
 import com.rugplayer.app.data.repository.StatusSaverRepository
 import com.rugplayer.app.data.repository.VideoRepository
+import com.rugplayer.app.player.PlaybackController
 
 /**
  * Small hand-rolled service locator. The app is intentionally light on
@@ -18,4 +19,5 @@ class AppGraph(context: Context) {
     val database: AppDatabase by lazy { AppDatabase.get(appContext) }
     val playbackPositionDao get() = database.playbackPositionDao()
     val statusSaverRepository: StatusSaverRepository by lazy { StatusSaverRepository(appContext) }
+    val playbackController: PlaybackController by lazy { PlaybackController(appContext) }
 }

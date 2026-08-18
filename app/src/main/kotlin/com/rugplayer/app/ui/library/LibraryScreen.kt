@@ -332,7 +332,7 @@ private fun FoldersList(
             FolderRow(
                 folder = folder,
                 onClick = { onOpenFolder(folder.name) },
-                onDelete = { onDeleteFolder(folder) },
+                onLongClick = { onDeleteFolder(folder) },
             )
         }
     }

@@ -1,6 +1,5 @@
 package com.rugplayer.app.ui.player
 
-import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -16,7 +15,7 @@ import com.rugplayer.app.data.db.PlaybackPositionEntity
 import com.rugplayer.app.data.model.VideoItem
 import com.rugplayer.app.data.prefs.SettingsRepository
 import com.rugplayer.app.data.repository.VideoRepository
-import com.rugplayer.app.player.connectMediaController
+import com.rugplayer.app.player.PlaybackController
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,16 +52,15 @@ data class PlayerUiState(
     val streamTitle: String? = null,
     val firstFrameRendered: Boolean = false,
     val errorMessage: String? = null,
-    val videoTrackDiagnostic: String? = null,
 ) {
     val current: VideoItem? get() = queue.getOrNull(currentIndex)
 }
 
 class PlayerViewModel(
-    private val appContext: Context,
     private val videoRepository: VideoRepository,
     private val positionDao: PlaybackPositionDao,
     private val settingsRepository: SettingsRepository,
+    private val playbackController: PlaybackController,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PlayerUiState())
@@ -92,10 +90,12 @@ class PlayerViewModel(
                     positionMs = 0,
                     isPortraitVideo = null,
                     firstFrameRendered = false,
-                    videoTrackDiagnostic = null,
                 )
             }
             refreshSubtitleTracks()
+            _uiState.value.queue.getOrNull(newIndex)?.let { video ->
+                playbackController.setNowPlaying(videoId = video.id, streamUrl = null, title = video.title)
+            }
         }
 
         override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
@@ -113,18 +113,6 @@ class PlayerViewModel(
 
         override fun onTracksChanged(tracks: Tracks) {
             refreshSubtitleTracks()
-
-            val videoGroup = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_VIDEO }
-            val videoDiagnostic = if (videoGroup == null) {
-                "no video track in file"
-            } else {
-                val format = videoGroup.getTrackFormat(0)
-                val supported = videoGroup.isTrackSupported(0)
-                "video codec: ${format.sampleMimeType ?: "unknown"} " +
-                    "(${format.codecs ?: "?"}) ${format.width}x${format.height} — " +
-                    if (supported) "decoder available" else "NO DECODER on this device"
-            }
-            _uiState.update { it.copy(videoTrackDiagnostic = videoDiagnostic) }
         }
 
         override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
@@ -134,13 +122,36 @@ class PlayerViewModel(
 
     fun start(initialVideoId: Long) {
         viewModelScope.launch {
+            val mediaController = playbackController.connect()
+            controller = mediaController
+            mediaController.addListener(playerListener)
+
+            // Reopening a video that's already loaded on the shared session
+            // (from the mini player or the notification) — sync UI state
+            // from the live controller instead of restarting playback.
+            if (mediaController.mediaItemCount > 0 &&
+                mediaController.currentMediaItem?.mediaId == initialVideoId.toString()
+            ) {
+                val allVideos = videoRepository.queryVideosOnce()
+                _uiState.update {
+                    it.copy(
+                        queue = allVideos,
+                        currentIndex = mediaController.currentMediaItemIndex.coerceAtLeast(0),
+                        isReady = true,
+                        isPlaying = mediaController.isPlaying,
+                        positionMs = mediaController.currentPosition,
+                        durationMs = mediaController.duration.coerceAtLeast(0),
+                        speed = mediaController.playbackParameters.speed,
+                    )
+                }
+                refreshSubtitleTracks()
+                startProgressTicker()
+                return@launch
+            }
+
             val allVideos = videoRepository.queryVideosOnce()
             val startIndex = allVideos.indexOfFirst { it.id == initialVideoId }.coerceAtLeast(0)
             _uiState.update { it.copy(queue = allVideos, currentIndex = startIndex) }
-
-            val mediaController = connectMediaController(appContext)
-            controller = mediaController
-            mediaController.addListener(playerListener)
 
             val settings = settingsRepository.settings.first()
             val defaultSpeed = settings.defaultSpeed
@@ -159,6 +170,11 @@ class PlayerViewModel(
 
             mediaController.prepare()
             mediaController.playWhenReady = true
+            playbackController.setNowPlaying(
+                videoId = initialVideoId,
+                streamUrl = null,
+                title = allVideos.getOrNull(startIndex)?.title ?: "",
+            )
 
             _uiState.update {
                 it.copy(
@@ -174,11 +190,28 @@ class PlayerViewModel(
     /** Plays an ad-hoc network URL — no library queue, no resume position. */
     fun startStream(url: String, title: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(queue = emptyList(), currentIndex = 0, streamTitle = title) }
-
-            val mediaController = connectMediaController(appContext)
+            val mediaController = playbackController.connect()
             controller = mediaController
             mediaController.addListener(playerListener)
+
+            if (mediaController.mediaItemCount > 0 && mediaController.currentMediaItem?.mediaId == url) {
+                _uiState.update {
+                    it.copy(
+                        queue = emptyList(),
+                        currentIndex = 0,
+                        streamTitle = title,
+                        isReady = true,
+                        isPlaying = mediaController.isPlaying,
+                        positionMs = mediaController.currentPosition,
+                        durationMs = mediaController.duration.coerceAtLeast(0),
+                        speed = mediaController.playbackParameters.speed,
+                    )
+                }
+                startProgressTicker()
+                return@launch
+            }
+
+            _uiState.update { it.copy(queue = emptyList(), currentIndex = 0, streamTitle = title) }
 
             val defaultSpeed = settingsRepository.settings.first().defaultSpeed
             val mediaItem = MediaItem.Builder().setUri(url).setMediaId(url).build()
@@ -186,6 +219,7 @@ class PlayerViewModel(
             mediaController.playbackParameters = androidx.media3.common.PlaybackParameters(defaultSpeed)
             mediaController.prepare()
             mediaController.playWhenReady = true
+            playbackController.setNowPlaying(videoId = null, streamUrl = url, title = title)
 
             _uiState.update {
                 it.copy(
@@ -393,10 +427,11 @@ class PlayerViewModel(
     }
 
     override fun onCleared() {
+        // The controller is owned by PlaybackController and outlives this
+        // screen — only detach this screen's own listener, don't release it.
         progressJob?.cancel()
         sleepTimerJob?.cancel()
         controller?.removeListener(playerListener)
-        controller?.release()
         super.onCleared()
     }
 }

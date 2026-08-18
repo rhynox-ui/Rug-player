@@ -17,13 +17,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Brightness6
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -71,10 +68,10 @@ fun PlayerScreen(
         factory = viewModelFactory {
             initializer {
                 PlayerViewModel(
-                    context.applicationContext,
                     graph.videoRepository,
                     graph.playbackPositionDao,
                     graph.settingsRepository,
+                    graph.playbackController,
                 )
             }
         },
@@ -167,14 +164,13 @@ fun PlayerScreen(
                 playerView.player = viewModel.controller
                 playerView.resizeMode = resizeModes[resizeModeIndex]
             },
+            onRelease = { it.player = null },
             modifier = Modifier.fillMaxSize(),
         )
 
-        // Self-healing retry: the diagnostics badge proved the track decodes
-        // fine (supported codec, decoder available) but no frame ever
-        // renders — consistent with the video surface not actually latching
-        // onto the real player the first time around. Re-poking the
-        // reference forces PlayerView to redo its surface attachment.
+        // Safety net: if a frame still hasn't rendered a couple seconds
+        // after playback is ready, re-poke the player reference to force
+        // PlayerView to redo its surface attachment.
         LaunchedEffect(state.isReady, viewModel.controller) {
             if (!state.isReady) return@LaunchedEffect
             delay(2000)
@@ -187,17 +183,6 @@ fun PlayerScreen(
                 }
             }
         }
-
-        // Temporary on-screen diagnostics for the black-screen report — tells
-        // us from a bug report alone whether frames are reaching the surface
-        // at all, without needing device logs.
-        DiagnosticsBadge(
-            firstFrameRendered = state.firstFrameRendered,
-            isPortraitVideo = state.isPortraitVideo,
-            errorMessage = state.errorMessage,
-            videoTrackDiagnostic = state.videoTrackDiagnostic,
-            modifier = Modifier.align(Alignment.TopStart),
-        )
 
         GestureOverlay(
             enabled = !state.locked,
@@ -382,33 +367,6 @@ private fun queryDisplayName(context: android.content.Context, uri: Uri): String
         if (nameIndex >= 0 && it.moveToFirst()) return it.getString(nameIndex)
     }
     return null
-}
-
-@Composable
-private fun DiagnosticsBadge(
-    firstFrameRendered: Boolean,
-    isPortraitVideo: Boolean?,
-    errorMessage: String?,
-    videoTrackDiagnostic: String?,
-    modifier: Modifier = Modifier,
-) {
-    val text = when {
-        errorMessage != null -> "Player error: $errorMessage"
-        firstFrameRendered -> "frame rendered ✓ (surface OK — if screen is still black, this is a compositing issue)"
-        isPortraitVideo != null -> "video detected, size known, no frame rendered yet (renderer/surface issue)"
-        videoTrackDiagnostic != null -> videoTrackDiagnostic
-        else -> "waiting for video track…"
-    }
-    val color = if (errorMessage != null) Color.Red else Color.Yellow
-    Text(
-        text = text,
-        color = color,
-        style = MaterialTheme.typography.labelSmall,
-        modifier = modifier
-            .statusBarsPadding()
-            .background(Color.Black.copy(alpha = 0.7f))
-            .padding(6.dp),
-    )
 }
 
 /**
