@@ -148,6 +148,8 @@ fun PlayerScreen(
         }
     }
 
+    var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -158,6 +160,7 @@ fun PlayerScreen(
                 (LayoutInflater.from(ctx).inflate(R.layout.player_view, null) as PlayerView).apply {
                     useController = false
                     setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                    playerViewRef = this
                 }
             },
             update = { playerView ->
@@ -166,6 +169,24 @@ fun PlayerScreen(
             },
             modifier = Modifier.fillMaxSize(),
         )
+
+        // Self-healing retry: the diagnostics badge proved the track decodes
+        // fine (supported codec, decoder available) but no frame ever
+        // renders — consistent with the video surface not actually latching
+        // onto the real player the first time around. Re-poking the
+        // reference forces PlayerView to redo its surface attachment.
+        LaunchedEffect(state.isReady, viewModel.controller) {
+            if (!state.isReady) return@LaunchedEffect
+            delay(2000)
+            if (!state.firstFrameRendered && state.errorMessage == null) {
+                val playerView = playerViewRef
+                val currentController = viewModel.controller
+                if (playerView != null && currentController != null) {
+                    playerView.player = null
+                    playerView.player = currentController
+                }
+            }
+        }
 
         // Temporary on-screen diagnostics for the black-screen report — tells
         // us from a bug report alone whether frames are reaching the surface

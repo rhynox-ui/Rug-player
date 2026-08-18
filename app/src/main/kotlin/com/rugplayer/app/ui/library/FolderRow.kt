@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,7 +30,12 @@ import coil.request.videoFrameMillis
 import com.rugplayer.app.ui.components.formatBytes
 
 @Composable
-fun FolderRow(folder: FolderSummary, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun FolderRow(
+    folder: FolderSummary,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     Row(
         modifier = modifier
@@ -84,6 +91,13 @@ fun FolderRow(folder: FolderSummary, onClick: () -> Unit, modifier: Modifier = M
             )
         }
 
+        IconButton(onClick = onDelete) {
+            Icon(
+                Icons.Filled.Delete,
+                contentDescription = "Delete folder",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,

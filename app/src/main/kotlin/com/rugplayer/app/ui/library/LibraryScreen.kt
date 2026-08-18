@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -37,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -161,6 +163,37 @@ private fun LibraryContent(
     val deleteVideos = rememberVideoDeleter { selectedIds = emptySet() }
     val showingFlatList = state.query.isNotBlank() || state.viewMode == LibraryViewMode.ALL_VIDEOS
 
+    var folderPendingDelete by remember { mutableStateOf<FolderSummary?>(null) }
+    val deleteFolderVideos = rememberVideoDeleter { folderPendingDelete = null }
+    folderPendingDelete?.let { folder ->
+        AlertDialog(
+            onDismissRequest = { folderPendingDelete = null },
+            title = { Text("Delete \"${folder.name}\"?") },
+            text = {
+                Text(
+                    "This deletes all ${folder.videoCount} " +
+                        (if (folder.videoCount == 1) "video" else "videos") +
+                        " in this folder. This can't be undone.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val toDelete = state.videos
+                        .filter { it.video.folder == folder.name }
+                        .map { it.video }
+                    deleteFolderVideos(toDelete)
+                }) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { folderPendingDelete = null }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+
     Scaffold(
         topBar = {
             if (selectionMode) {
@@ -251,7 +284,12 @@ private fun LibraryContent(
                     onToggleSelect = { id -> selectedIds = toggleSelection(selectedIds, id) },
                 )
             } else {
-                FoldersList(state = state, onOpenVideo = onOpenVideo, onOpenFolder = onOpenFolder)
+                FoldersList(
+                    state = state,
+                    onOpenVideo = onOpenVideo,
+                    onOpenFolder = onOpenFolder,
+                    onDeleteFolder = { folderPendingDelete = it },
+                )
             }
         }
     }
@@ -284,13 +322,18 @@ private fun FoldersList(
     state: LibraryUiState,
     onOpenVideo: (Long) -> Unit,
     onOpenFolder: (String) -> Unit,
+    onDeleteFolder: (FolderSummary) -> Unit,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         if (state.continueWatching.isNotEmpty()) {
             item { ContinueWatchingRow(items = state.continueWatching, onOpenVideo = onOpenVideo) }
         }
         listItems(state.folders, key = { it.name }) { folder ->
-            FolderRow(folder = folder, onClick = { onOpenFolder(folder.name) })
+            FolderRow(
+                folder = folder,
+                onClick = { onOpenFolder(folder.name) },
+                onDelete = { onDeleteFolder(folder) },
+            )
         }
     }
 }
