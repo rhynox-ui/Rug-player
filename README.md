@@ -80,6 +80,24 @@ A GitHub Actions workflow (`.github/workflows/android-build.yml`) builds a debug
 - Android 8.0 (API 26) and up
 - Kotlin 2.0, Compose BOM 2024.12, Media3 1.5
 
+## Publishing to Google Play
+
+1. **Get an upload keystore.** Copy `keystore.properties.example` to `keystore.properties` at the repo root and fill in a real keystore's details, or generate one:
+   ```bash
+   keytool -genkeypair -v -keystore rug-player-upload.jks -alias rug-player-upload \
+     -keyalg RSA -keysize 2048 -validity 10950
+   ```
+   `keystore.properties` and `*.jks` are gitignored — never commit them. Losing this key means you can never update the same Play listing again, so back it up somewhere durable.
+2. **Build the signed bundle:**
+   ```bash
+   ./gradlew bundleRelease
+   # app/build/outputs/bundle/release/app-release.aab
+   ```
+   Or push to GitHub after adding `RUG_KEYSTORE_BASE64` (base64 of the `.jks`), `RUG_KEYSTORE_PASSWORD`, `RUG_KEY_ALIAS`, and `RUG_KEY_PASSWORD` as repo secrets (Settings → Secrets and variables → Actions) — the `release` job in `.github/workflows/android-build.yml` will build and upload a signed `.aab` automatically.
+3. **In [Play Console](https://play.google.com/console):** create the app, then work through Store listing (title, description, screenshots, icon), Content rating, Target audience, Data safety (answer "no" throughout — Rug Player collects nothing), and add the Privacy Policy URL.
+4. **Upload the `.aab`** under Testing → Internal testing (fastest way to get a real device install) or Production, and roll it out.
+5. Bump `versionCode`/`versionName` in `app/build.gradle.kts` before every subsequent upload — Play rejects a re-upload of an unchanged `versionCode`.
+
 ## Permissions
 
 | Permission | Why |

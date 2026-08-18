@@ -41,3 +41,62 @@ jobs:
           name: rug-player-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+  release:
+    name: Build signed release AAB
+    runs-on: ubuntu-latest
+    # Only runs once RUG_KEYSTORE_BASE64 is added as a repo secret — see
+    # keystore.properties.example and README.md for how to set it up.
+    if: ${{ github.event_name != 'pull_request' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check signing secret is configured
+        id: check
+        run: |
+          if [ -n "${{ secrets.RUG_KEYSTORE_BASE64 }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK 17
+        if: steps.check.outputs.configured == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        if: steps.check.outputs.configured == 'true'
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        if: steps.check.outputs.configured == 'true'
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission to gradlew
+        if: steps.check.outputs.configured == 'true'
+        run: chmod +x gradlew
+
+      - name: Decode keystore
+        if: steps.check.outputs.configured == 'true'
+        run: echo "${{ secrets.RUG_KEYSTORE_BASE64 }}" | base64 -d > rug-player-upload.jks
+
+      - name: Assemble release bundle
+        if: steps.check.outputs.configured == 'true'
+        env:
+          RUG_KEYSTORE_PATH: rug-player-upload.jks
+          RUG_KEYSTORE_PASSWORD: ${{ secrets.RUG_KEYSTORE_PASSWORD }}
+          RUG_KEY_ALIAS: ${{ secrets.RUG_KEY_ALIAS }}
+          RUG_KEY_PASSWORD: ${{ secrets.RUG_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease --stacktrace
+
+      - name: Upload AAB
+        if: steps.check.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rug-player-release-aab
+          path: app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error

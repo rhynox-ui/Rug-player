@@ -15,3 +15,8 @@ local.properties
 *.aab
 
 .kotlin/
+
+# Release signing — never commit these.
+keystore.properties
+*.jks
+*.keystore

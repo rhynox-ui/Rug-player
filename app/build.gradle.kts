@@ -1,9 +1,22 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
+
+// Release signing: read from keystore.properties (gitignored, local machines)
+// or from environment variables (CI). Neither the keystore file nor its
+// passwords are ever committed to the repo.
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+fun signingProp(propertyKey: String, envKey: String): String? =
+    keystoreProperties.getProperty(propertyKey) ?: System.getenv(envKey)
 
 android {
     namespace = "com.rugplayer.app"
@@ -21,10 +34,20 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            signingProp("storeFile", "RUG_KEYSTORE_PATH")?.let { storeFile = file(it) }
+            storePassword = signingProp("storePassword", "RUG_KEYSTORE_PASSWORD")
+            keyAlias = signingProp("keyAlias", "RUG_KEY_ALIAS")
+            keyPassword = signingProp("keyPassword", "RUG_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
