@@ -104,7 +104,13 @@ fun FolderVideosScreen(
                             onOpenVideo(item.video.id)
                         }
                     },
-                    onLongClick = { actionSheetVideo = item.video },
+                    onLongClick = {
+                        if (selectionMode) {
+                            selectedIds = toggleSelection(selectedIds, item.video.id)
+                        } else {
+                            actionSheetVideo = item.video
+                        }
+                    },
                 )
             }
         }

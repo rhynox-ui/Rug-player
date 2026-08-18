@@ -378,7 +378,9 @@ private fun AllVideosGrid(
                     onClick = {
                         if (selectionMode) onToggleSelect(item.video.id) else onOpenVideo(item.video.id)
                     },
-                    onLongClick = { onLongPress(item.video) },
+                    onLongClick = {
+                        if (selectionMode) onToggleSelect(item.video.id) else onLongPress(item.video)
+                    },
                 )
             }
         }
@@ -398,7 +400,9 @@ private fun AllVideosGrid(
                     onClick = {
                         if (selectionMode) onToggleSelect(item.video.id) else onOpenVideo(item.video.id)
                     },
-                    onLongClick = { onLongPress(item.video) },
+                    onLongClick = {
+                        if (selectionMode) onToggleSelect(item.video.id) else onLongPress(item.video)
+                    },
                 )
             }
         }
