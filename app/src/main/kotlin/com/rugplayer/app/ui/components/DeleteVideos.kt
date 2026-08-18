@@ -1,5 +1,6 @@
 package com.rugplayer.app.ui.components
 
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -11,13 +12,15 @@ import androidx.compose.ui.platform.LocalContext
 import com.rugplayer.app.data.model.VideoItem
 
 /**
- * Deletes videos from the shared library. On Android 11+ this hands off to
- * the system's own "delete these files?" confirmation via
+ * Deletes videos from the shared library by URI. On Android 11+ this hands
+ * off to the system's own "delete these files?" confirmation via
  * [MediaStore.createDeleteRequest]; on older versions it deletes directly
- * (items Rug Player doesn't own may silently fail to delete there).
+ * (items Rug Player doesn't own may silently fail to delete there). URI-based
+ * so a cross-folder multi-select can delete without needing every VideoItem
+ * loaded at once.
  */
 @Composable
-fun rememberVideoDeleter(onFinished: (deleted: Boolean) -> Unit): (List<VideoItem>) -> Unit {
+fun rememberUriDeleter(onFinished: (deleted: Boolean) -> Unit): (List<Uri>) -> Unit {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
@@ -26,8 +29,7 @@ fun rememberVideoDeleter(onFinished: (deleted: Boolean) -> Unit): (List<VideoIte
     }
 
     return remember(context) {
-        { videos: List<VideoItem> ->
-            val uris = videos.map { it.uri }
+        { uris: List<Uri> ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val sender = MediaStore.createDeleteRequest(context.contentResolver, uris).intentSender
                 launcher.launch(IntentSenderRequest.Builder(sender).build())
@@ -41,4 +43,10 @@ fun rememberVideoDeleter(onFinished: (deleted: Boolean) -> Unit): (List<VideoIte
             }
         }
     }
+}
+
+@Composable
+fun rememberVideoDeleter(onFinished: (deleted: Boolean) -> Unit): (List<VideoItem>) -> Unit {
+    val deleteByUri = rememberUriDeleter(onFinished)
+    return { videos -> deleteByUri(videos.map { it.uri }) }
 }

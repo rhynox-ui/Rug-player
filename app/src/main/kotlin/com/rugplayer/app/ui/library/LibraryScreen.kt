@@ -61,13 +61,16 @@ import com.google.accompanist.permissions.shouldShowRationale
 import com.rugplayer.app.AppGraph
 import com.rugplayer.app.R
 import com.rugplayer.app.data.model.VideoItem
-import com.rugplayer.app.ui.components.SelectionTopBar
+import com.rugplayer.app.ui.components.SelectionActionBar
 import com.rugplayer.app.ui.components.VideoActionSheet
 import com.rugplayer.app.ui.components.VideoListRow
 import com.rugplayer.app.ui.components.VideoThumbnailCard
+import com.rugplayer.app.ui.components.rememberUriDeleter
 import com.rugplayer.app.ui.components.rememberVideoDeleter
 import com.rugplayer.app.ui.components.rememberVideoRenamer
 import com.rugplayer.app.ui.components.shareVideo
+import com.rugplayer.app.ui.components.shareVideos
+import com.rugplayer.app.ui.components.videoUri
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -93,6 +96,7 @@ fun LibraryScreen(
             },
         )
         LibraryContent(
+            graph = graph,
             viewModel = viewModel,
             onOpenVideo = onOpenVideo,
             onOpenSettings = onOpenSettings,
@@ -154,6 +158,7 @@ private fun PermissionRequest(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LibraryContent(
+    graph: AppGraph,
     viewModel: LibraryViewModel,
     onOpenVideo: (Long) -> Unit,
     onOpenSettings: () -> Unit,
@@ -164,9 +169,10 @@ private fun LibraryContent(
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
     var sortMenuOpen by remember { mutableStateOf(false) }
-    var selectedIds by remember { mutableStateOf(setOf<Long>()) }
+    val selectedIds by graph.selectionController.selectedIds.collectAsState()
     val selectionMode = selectedIds.isNotEmpty()
-    val deleteVideos = rememberVideoDeleter { selectedIds = emptySet() }
+    val deleteVideos = rememberVideoDeleter {}
+    val deleteSelected = rememberUriDeleter { success -> if (success) graph.selectionController.clear() }
     val renameVideo = rememberVideoRenamer {}
     val showingFlatList = state.query.isNotBlank() || state.viewMode == LibraryViewMode.ALL_VIDEOS
 
@@ -177,7 +183,7 @@ private fun LibraryContent(
             onDismiss = { actionSheetVideo = null },
             onShare = { shareVideo(context, video) },
             onRename = { newName -> renameVideo(video, newName) },
-            onSelect = { selectedIds = setOf(video.id) },
+            onSelect = { graph.selectionController.select(video.id) },
             onDelete = { deleteVideos(listOf(video)) },
         )
     }
@@ -215,29 +221,28 @@ private fun LibraryContent(
 
     Scaffold(
         topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.library_title)) },
+                actions = {
+                    IconButton(onClick = onOpenStatusSaver) {
+                        Icon(Icons.Filled.Download, contentDescription = "Status Saver")
+                    }
+                    IconButton(onClick = onOpenTransfer) {
+                        Icon(Icons.Filled.Wifi, contentDescription = stringResource(R.string.action_transfer))
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.action_settings))
+                    }
+                },
+            )
+        },
+        bottomBar = {
             if (selectionMode) {
-                SelectionTopBar(
+                SelectionActionBar(
                     selectedCount = selectedIds.size,
-                    onCancel = { selectedIds = emptySet() },
-                    onDelete = {
-                        val toDelete = state.videos.filter { it.video.id in selectedIds }.map { it.video }
-                        deleteVideos(toDelete)
-                    },
-                )
-            } else {
-                TopAppBar(
-                    title = { Text(stringResource(R.string.library_title)) },
-                    actions = {
-                        IconButton(onClick = onOpenStatusSaver) {
-                            Icon(Icons.Filled.Download, contentDescription = "Status Saver")
-                        }
-                        IconButton(onClick = onOpenTransfer) {
-                            Icon(Icons.Filled.Wifi, contentDescription = stringResource(R.string.action_transfer))
-                        }
-                        IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.action_settings))
-                        }
-                    },
+                    onShare = { shareVideos(context, selectedIds) },
+                    onDelete = { deleteSelected(selectedIds.map(::videoUri)) },
+                    onCancel = { graph.selectionController.clear() },
                 )
             }
         },
@@ -300,7 +305,7 @@ private fun LibraryContent(
                     selectedIds = selectedIds,
                     selectionMode = selectionMode,
                     onOpenVideo = onOpenVideo,
-                    onToggleSelect = { id -> selectedIds = toggleSelection(selectedIds, id) },
+                    onToggleSelect = { id -> graph.selectionController.toggle(id) },
                     onLongPress = { actionSheetVideo = it },
                 )
             } else {

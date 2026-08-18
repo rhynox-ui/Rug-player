@@ -25,12 +25,15 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.rugplayer.app.AppGraph
 import com.rugplayer.app.data.model.VideoItem
-import com.rugplayer.app.ui.components.SelectionTopBar
+import com.rugplayer.app.ui.components.SelectionActionBar
 import com.rugplayer.app.ui.components.VideoActionSheet
 import com.rugplayer.app.ui.components.VideoListRow
+import com.rugplayer.app.ui.components.rememberUriDeleter
 import com.rugplayer.app.ui.components.rememberVideoDeleter
 import com.rugplayer.app.ui.components.rememberVideoRenamer
 import com.rugplayer.app.ui.components.shareVideo
+import com.rugplayer.app.ui.components.shareVideos
+import com.rugplayer.app.ui.components.videoUri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,10 +50,11 @@ fun FolderVideosScreen(
     )
     val context = LocalContext.current
     val videos by viewModel.videos.collectAsState()
-    var selectedIds by remember { mutableStateOf(setOf<Long>()) }
+    val selectedIds by graph.selectionController.selectedIds.collectAsState()
     val selectionMode = selectedIds.isNotEmpty()
 
-    val deleteVideos = rememberVideoDeleter { selectedIds = emptySet() }
+    val deleteVideos = rememberVideoDeleter {}
+    val deleteSelected = rememberUriDeleter { success -> if (success) graph.selectionController.clear() }
     val renameVideo = rememberVideoRenamer {}
 
     var actionSheetVideo by remember { mutableStateOf<VideoItem?>(null) }
@@ -60,30 +64,29 @@ fun FolderVideosScreen(
             onDismiss = { actionSheetVideo = null },
             onShare = { shareVideo(context, video) },
             onRename = { newName -> renameVideo(video, newName) },
-            onSelect = { selectedIds = setOf(video.id) },
+            onSelect = { graph.selectionController.select(video.id) },
             onDelete = { deleteVideos(listOf(video)) },
         )
     }
 
     Scaffold(
         topBar = {
+            TopAppBar(
+                title = { Text(folderName) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+        bottomBar = {
             if (selectionMode) {
-                SelectionTopBar(
+                SelectionActionBar(
                     selectedCount = selectedIds.size,
-                    onCancel = { selectedIds = emptySet() },
-                    onDelete = {
-                        val toDelete = videos.filter { it.video.id in selectedIds }.map { it.video }
-                        deleteVideos(toDelete)
-                    },
-                )
-            } else {
-                TopAppBar(
-                    title = { Text(folderName) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    },
+                    onShare = { shareVideos(context, selectedIds) },
+                    onDelete = { deleteSelected(selectedIds.map(::videoUri)) },
+                    onCancel = { graph.selectionController.clear() },
                 )
             }
         },
@@ -99,14 +102,14 @@ fun FolderVideosScreen(
                     selectionMode = selectionMode,
                     onClick = {
                         if (selectionMode) {
-                            selectedIds = toggleSelection(selectedIds, item.video.id)
+                            graph.selectionController.toggle(item.video.id)
                         } else {
                             onOpenVideo(item.video.id)
                         }
                     },
                     onLongClick = {
                         if (selectionMode) {
-                            selectedIds = toggleSelection(selectedIds, item.video.id)
+                            graph.selectionController.toggle(item.video.id)
                         } else {
                             actionSheetVideo = item.video
                         }
@@ -116,6 +119,3 @@ fun FolderVideosScreen(
         }
     }
 }
-
-internal fun toggleSelection(current: Set<Long>, id: Long): Set<Long> =
-    if (id in current) current - id else current + id
