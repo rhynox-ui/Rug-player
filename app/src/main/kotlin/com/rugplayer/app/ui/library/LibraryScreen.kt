@@ -12,13 +12,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items as lazyRowItems
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.items as listItems
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MovieFilter
@@ -32,7 +33,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -57,7 +57,10 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
 import com.rugplayer.app.AppGraph
 import com.rugplayer.app.R
+import com.rugplayer.app.ui.components.SelectionTopBar
+import com.rugplayer.app.ui.components.VideoListRow
 import com.rugplayer.app.ui.components.VideoThumbnailCard
+import com.rugplayer.app.ui.components.rememberVideoDeleter
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +69,8 @@ fun LibraryScreen(
     onOpenVideo: (Long) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenTransfer: () -> Unit,
+    onOpenFolder: (String) -> Unit,
+    onOpenStatusSaver: () -> Unit,
 ) {
     val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         Manifest.permission.READ_MEDIA_VIDEO
@@ -74,33 +79,24 @@ fun LibraryScreen(
     }
     val permissionState = rememberPermissionState(permission)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.library_title)) },
-                actions = {
-                    IconButton(onClick = onOpenTransfer) {
-                        Icon(Icons.Filled.Wifi, contentDescription = stringResource(R.string.action_transfer))
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.action_settings))
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        if (permissionState.status.isGranted) {
-            val viewModel: LibraryViewModel = viewModel(
-                factory = viewModelFactory {
-                    initializer { LibraryViewModel(graph.videoRepository, graph.playbackPositionDao) }
-                },
-            )
-            LibraryContent(
-                viewModel = viewModel,
-                onOpenVideo = onOpenVideo,
-                padding = padding,
-            )
-        } else {
+    if (permissionState.status.isGranted) {
+        val viewModel: LibraryViewModel = viewModel(
+            factory = viewModelFactory {
+                initializer { LibraryViewModel(graph.videoRepository, graph.playbackPositionDao) }
+            },
+        )
+        LibraryContent(
+            viewModel = viewModel,
+            onOpenVideo = onOpenVideo,
+            onOpenSettings = onOpenSettings,
+            onOpenTransfer = onOpenTransfer,
+            onOpenFolder = onOpenFolder,
+            onOpenStatusSaver = onOpenStatusSaver,
+        )
+    } else {
+        Scaffold(
+            topBar = { TopAppBar(title = { Text(stringResource(R.string.library_title)) }) },
+        ) { padding ->
             PermissionRequest(
                 showRationale = permissionState.status.shouldShowRationale,
                 onRequest = { permissionState.launchPermissionRequest() },
@@ -153,115 +149,191 @@ private fun PermissionRequest(
 private fun LibraryContent(
     viewModel: LibraryViewModel,
     onOpenVideo: (Long) -> Unit,
-    padding: PaddingValues,
+    onOpenSettings: () -> Unit,
+    onOpenTransfer: () -> Unit,
+    onOpenFolder: (String) -> Unit,
+    onOpenStatusSaver: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsState()
     var sortMenuOpen by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(setOf<Long>()) }
+    val selectionMode = selectedIds.isNotEmpty()
+    val deleteVideos = rememberVideoDeleter { selectedIds = emptySet() }
+    val showingFlatList = state.query.isNotBlank() || state.viewMode == LibraryViewMode.ALL_VIDEOS
 
+    Scaffold(
+        topBar = {
+            if (selectionMode) {
+                SelectionTopBar(
+                    selectedCount = selectedIds.size,
+                    onCancel = { selectedIds = emptySet() },
+                    onDelete = {
+                        val toDelete = state.videos.filter { it.video.id in selectedIds }.map { it.video }
+                        deleteVideos(toDelete)
+                    },
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.library_title)) },
+                    actions = {
+                        IconButton(onClick = onOpenStatusSaver) {
+                            Icon(Icons.Filled.Download, contentDescription = "Status Saver")
+                        }
+                        IconButton(onClick = onOpenTransfer) {
+                            Icon(Icons.Filled.Wifi, contentDescription = stringResource(R.string.action_transfer))
+                        }
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.action_settings))
+                        }
+                    },
+                )
+            }
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = state.query,
+                    onValueChange = viewModel::setQuery,
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text(stringResource(R.string.search_hint)) },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    singleLine = true,
+                )
+                IconButton(
+                    onClick = {
+                        viewModel.setViewMode(
+                            if (state.viewMode == LibraryViewMode.FOLDERS) LibraryViewMode.ALL_VIDEOS
+                            else LibraryViewMode.FOLDERS,
+                        )
+                    },
+                ) {
+                    Icon(
+                        if (state.viewMode == LibraryViewMode.FOLDERS) Icons.Filled.GridView else Icons.Filled.Folder,
+                        contentDescription = "Switch view",
+                    )
+                }
+                Box {
+                    IconButton(onClick = { sortMenuOpen = true }) {
+                        Icon(Icons.Filled.Sort, contentDescription = null)
+                    }
+                    DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
+                        SortOption.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option.label) },
+                                onClick = {
+                                    viewModel.setSort(option)
+                                    sortMenuOpen = false
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (state.videos.isEmpty() && state.folders.isEmpty()) {
+                EmptyLibrary()
+            } else if (showingFlatList) {
+                AllVideosGrid(
+                    state = state,
+                    selectedIds = selectedIds,
+                    selectionMode = selectionMode,
+                    onOpenVideo = onOpenVideo,
+                    onToggleSelect = { id -> selectedIds = toggleSelection(selectedIds, id) },
+                )
+            } else {
+                FoldersList(state = state, onOpenVideo = onOpenVideo, onOpenFolder = onOpenFolder)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyLibrary() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(padding),
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = viewModel::setQuery,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text(stringResource(R.string.search_hint)) },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                singleLine = true,
-            )
-            IconButton(onClick = { viewModel.setGroupByFolder(!state.groupByFolder) }) {
-                Icon(
-                    if (state.groupByFolder) Icons.Filled.Folder else Icons.Filled.GridView,
-                    contentDescription = "Group by folder",
-                    tint = if (state.groupByFolder) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+        Text(
+            text = stringResource(R.string.library_empty_title),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            text = stringResource(R.string.library_empty_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun FoldersList(
+    state: LibraryUiState,
+    onOpenVideo: (Long) -> Unit,
+    onOpenFolder: (String) -> Unit,
+) {
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        if (state.continueWatching.isNotEmpty()) {
+            item { ContinueWatchingRow(items = state.continueWatching, onOpenVideo = onOpenVideo) }
+        }
+        listItems(state.folders, key = { it.name }) { folder ->
+            FolderRow(folder = folder, onClick = { onOpenFolder(folder.name) })
+        }
+    }
+}
+
+@Composable
+private fun AllVideosGrid(
+    state: LibraryUiState,
+    selectedIds: Set<Long>,
+    selectionMode: Boolean,
+    onOpenVideo: (Long) -> Unit,
+    onToggleSelect: (Long) -> Unit,
+) {
+    if (state.query.isNotBlank()) {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            listItems(state.videos, key = { it.video.id }) { item ->
+                VideoListRow(
+                    video = item.video,
+                    progressFraction = item.progressFraction,
+                    selected = item.video.id in selectedIds,
+                    selectionMode = selectionMode,
+                    onClick = {
+                        if (selectionMode) onToggleSelect(item.video.id) else onOpenVideo(item.video.id)
+                    },
+                    onLongClick = { onToggleSelect(item.video.id) },
                 )
-            }
-            Box {
-                IconButton(onClick = { sortMenuOpen = true }) {
-                    Icon(Icons.Filled.Sort, contentDescription = null)
-                }
-                DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
-                    SortOption.entries.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(option.label) },
-                            onClick = {
-                                viewModel.setSort(option)
-                                sortMenuOpen = false
-                            },
-                        )
-                    }
-                }
             }
         }
-
-        if (state.videos.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = stringResource(R.string.library_empty_title),
-                    style = MaterialTheme.typography.titleMedium,
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 160.dp),
+            contentPadding = PaddingValues(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            gridItems(state.videos, key = { it.video.id }) { item ->
+                VideoThumbnailCard(
+                    video = item.video,
+                    progressFraction = item.progressFraction,
+                    onClick = {
+                        if (selectionMode) onToggleSelect(item.video.id) else onOpenVideo(item.video.id)
+                    },
                 )
-                Text(
-                    text = stringResource(R.string.library_empty_body),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 160.dp),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                if (state.continueWatching.isNotEmpty() && state.query.isBlank()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        ContinueWatchingRow(items = state.continueWatching, onOpenVideo = onOpenVideo)
-                    }
-                }
-
-                if (state.groupByFolder) {
-                    val grouped = state.videos.groupBy { it.video.folder }.toSortedMap()
-                    grouped.forEach { (folder, videosInFolder) ->
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Text(
-                                text = folder,
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(vertical = 8.dp),
-                            )
-                        }
-                        items(videosInFolder, key = { it.video.id }) { item ->
-                            VideoThumbnailCard(
-                                video = item.video,
-                                progressFraction = item.progressFraction,
-                                onClick = { onOpenVideo(item.video.id) },
-                            )
-                        }
-                    }
-                } else {
-                    items(state.videos, key = { it.video.id }) { item ->
-                        VideoThumbnailCard(
-                            video = item.video,
-                            progressFraction = item.progressFraction,
-                            onClick = { onOpenVideo(item.video.id) },
-                        )
-                    }
-                }
             }
         }
     }
@@ -273,10 +345,13 @@ private fun ContinueWatchingRow(items: List<LibraryVideoUi>, onOpenVideo: (Long)
         Text(
             text = "Continue watching",
             style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 8.dp),
+            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
         )
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            lazyRowItems(items, key = { it.video.id }) { item ->
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+        ) {
+            listItems(items, key = { it.video.id }) { item ->
                 VideoThumbnailCard(
                     video = item.video,
                     progressFraction = item.progressFraction,

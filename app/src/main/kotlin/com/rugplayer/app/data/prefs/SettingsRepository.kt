@@ -23,6 +23,7 @@ data class AppSettings(
     val subtitleFontScale: Float = 1f,
     val subtitleDelayMs: Int = 0,
     val backgroundPlayback: Boolean = true,
+    val statusSaverTreeUri: String? = null,
 )
 
 class SettingsRepository(private val context: Context) {
@@ -36,6 +37,7 @@ class SettingsRepository(private val context: Context) {
         val SUBTITLE_FONT_SCALE = floatPreferencesKey("subtitle_font_scale")
         val SUBTITLE_DELAY_MS = intPreferencesKey("subtitle_delay_ms")
         val BACKGROUND_PLAYBACK = booleanPreferencesKey("background_playback")
+        val STATUS_SAVER_TREE_URI = stringPreferencesKey("status_saver_tree_uri")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -49,6 +51,7 @@ class SettingsRepository(private val context: Context) {
             subtitleFontScale = prefs[Keys.SUBTITLE_FONT_SCALE] ?: 1f,
             subtitleDelayMs = prefs[Keys.SUBTITLE_DELAY_MS] ?: 0,
             backgroundPlayback = prefs[Keys.BACKGROUND_PLAYBACK] ?: true,
+            statusSaverTreeUri = prefs[Keys.STATUS_SAVER_TREE_URI],
         )
     }
 
@@ -82,5 +85,11 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setBackgroundPlayback(enabled: Boolean) {
         context.dataStore.edit { it[Keys.BACKGROUND_PLAYBACK] = enabled }
+    }
+
+    suspend fun setStatusSaverTreeUri(uri: String?) {
+        context.dataStore.edit {
+            if (uri == null) it.remove(Keys.STATUS_SAVER_TREE_URI) else it[Keys.STATUS_SAVER_TREE_URI] = uri
+        }
     }
 }

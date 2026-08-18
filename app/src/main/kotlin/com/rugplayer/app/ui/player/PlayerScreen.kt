@@ -2,6 +2,7 @@ package com.rugplayer.app.ui.player
 
 import android.app.Activity
 import android.app.PictureInPictureParams
+import android.content.pm.ActivityInfo
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
@@ -50,8 +51,10 @@ import kotlinx.coroutines.launch
 @Composable
 fun PlayerScreen(
     graph: AppGraph,
-    initialVideoId: Long,
     onBack: () -> Unit,
+    initialVideoId: Long? = null,
+    streamUrl: String? = null,
+    streamTitle: String? = null,
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -70,7 +73,13 @@ fun PlayerScreen(
         },
     )
 
-    LaunchedEffect(initialVideoId) { viewModel.start(initialVideoId) }
+    LaunchedEffect(initialVideoId, streamUrl) {
+        if (streamUrl != null) {
+            viewModel.startStream(streamUrl, streamTitle ?: "Network stream")
+        } else if (initialVideoId != null) {
+            viewModel.start(initialVideoId)
+        }
+    }
 
     val state by viewModel.uiState.collectAsState()
 
@@ -117,6 +126,7 @@ fun PlayerScreen(
 
     KeepScreenOn(enabled = state.isPlaying)
     ImmersiveMode(hideSystemBars = !controlsVisible)
+    ForceOrientationForPlayback(isPortraitVideo = state.isPortraitVideo)
 
     val subtitlePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -238,7 +248,7 @@ fun PlayerScreen(
                 modifier = Modifier.align(Alignment.TopCenter),
             ) {
                 PlayerTopBar(
-                    title = state.current?.title ?: "",
+                    title = state.current?.title ?: state.streamTitle ?: "",
                     onBack = onBack,
                     onSubtitles = { showSubtitleSheet = true },
                     onSpeed = { showSpeedSheet = true },
@@ -333,6 +343,30 @@ private fun queryDisplayName(context: android.content.Context, uri: Uri): String
         if (nameIndex >= 0 && it.moveToFirst()) return it.getString(nameIndex)
     }
     return null
+}
+
+/**
+ * Forces the player into fullscreen landscape the moment a video opens,
+ * regardless of the device's rotation-lock setting — matching the "just
+ * play it sideways" behavior of most video player apps. Switches to
+ * portrait for portrait-shot clips once the real dimensions are known, and
+ * releases the forced orientation entirely when leaving the player.
+ */
+@Composable
+private fun ForceOrientationForPlayback(isPortraitVideo: Boolean?) {
+    val activity = LocalContext.current as? Activity ?: return
+
+    DisposableEffect(Unit) {
+        onDispose { activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+    }
+
+    LaunchedEffect(isPortraitVideo) {
+        activity.requestedOrientation = if (isPortraitVideo == true) {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+    }
 }
 
 @Composable

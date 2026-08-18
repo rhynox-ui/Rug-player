@@ -49,6 +49,8 @@ data class PlayerUiState(
     val sleepTimerEndAtMs: Long? = null,
     val abRepeatStartMs: Long? = null,
     val abRepeatEndMs: Long? = null,
+    val isPortraitVideo: Boolean? = null,
+    val streamTitle: String? = null,
 ) {
     val current: VideoItem? get() = queue.getOrNull(currentIndex)
 }
@@ -81,8 +83,13 @@ class PlayerViewModel(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val newIndex = controller?.currentMediaItemIndex ?: return
-            _uiState.update { it.copy(currentIndex = newIndex, positionMs = 0) }
+            _uiState.update { it.copy(currentIndex = newIndex, positionMs = 0, isPortraitVideo = null) }
             refreshSubtitleTracks()
+        }
+
+        override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+            if (videoSize.width == 0 || videoSize.height == 0) return
+            _uiState.update { it.copy(isPortraitVideo = videoSize.height > videoSize.width) }
         }
 
         override fun onTracksChanged(tracks: Tracks) {
@@ -119,6 +126,33 @@ class PlayerViewModel(
                 mediaController.seekTo(startIndex, savedPosition.positionMs)
             }
 
+            mediaController.prepare()
+            mediaController.playWhenReady = true
+
+            _uiState.update {
+                it.copy(
+                    isReady = true,
+                    speed = defaultSpeed,
+                    durationMs = mediaController.duration.coerceAtLeast(0),
+                )
+            }
+            startProgressTicker()
+        }
+    }
+
+    /** Plays an ad-hoc network URL — no library queue, no resume position. */
+    fun startStream(url: String, title: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(queue = emptyList(), currentIndex = 0, streamTitle = title) }
+
+            val mediaController = connectMediaController(appContext)
+            controller = mediaController
+            mediaController.addListener(playerListener)
+
+            val defaultSpeed = settingsRepository.settings.first().defaultSpeed
+            val mediaItem = MediaItem.Builder().setUri(url).setMediaId(url).build()
+            mediaController.setMediaItem(mediaItem)
+            mediaController.playbackParameters = androidx.media3.common.PlaybackParameters(defaultSpeed)
             mediaController.prepare()
             mediaController.playWhenReady = true
 

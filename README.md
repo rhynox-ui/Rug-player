@@ -12,12 +12,15 @@ MX Player shipped ads in the player chrome, in the library, and between actions,
 
 **Library**
 - Auto-scans on-device videos via MediaStore — no manual folder import needed
-- Search, sort (date / name / duration / size), and folder grouping
+- **Folders view** (the default, like MX Player): every folder with videos listed vertically with a thumbnail and count; tap in for a vertical file list. Toggle to a flat "All videos" grid any time.
+- Search, sort (date / name / duration / size)
 - "Continue watching" row for videos you're partway through
+- Multi-select (long-press) to delete videos in bulk, from search results or inside a folder
 - Thumbnails generated on-device, nothing uploaded anywhere
 
 **Playback**
 - Hardware-accelerated decoding via Media3/ExoPlayer (broad codec/container support, including MKV)
+- **Forces landscape fullscreen the moment a video opens** — regardless of your phone's rotation-lock setting — and switches to portrait automatically for portrait-shot clips
 - Gesture controls: swipe left half for brightness, right half for volume, drag anywhere to scrub, double-tap either edge for ±10s
 - Playback speed (0.25×–3×), zoom/aspect-ratio toggle (fit/zoom/fill)
 - Resume playback automatically where you left off
@@ -33,6 +36,10 @@ MX Player shipped ads in the player chrome, in the library, and between actions,
 
 **Send & Receive**
 - Send a video directly to another phone on the same Wi-Fi network — no cloud, no account, no size limit tied to a chat app. One device serves the file over a local HTTP link; the other pastes the link and pulls it straight into its library.
+- **Stream tab**: paste any direct video URL and play it immediately, no download step.
+
+**Status Saver**
+- Point Rug Player at WhatsApp's (or WhatsApp Business's) status folder once via the system file picker, and save any status video before it expires — copied straight into your library, no re-download later.
 
 **Privacy**
 - No ad SDK, no analytics, no account system, no telemetry of any kind

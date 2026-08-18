@@ -15,7 +15,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
@@ -37,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,7 +56,7 @@ import com.rugplayer.app.ui.components.formatBytes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransferScreen(graph: AppGraph, onBack: () -> Unit) {
+fun TransferScreen(graph: AppGraph, onBack: () -> Unit, onPlayStream: (url: String, title: String) -> Unit) {
     val context = LocalContext.current
     val viewModel: TransferViewModel = viewModel(
         factory = viewModelFactory {
@@ -87,13 +90,57 @@ fun TransferScreen(graph: AppGraph, onBack: () -> Unit) {
                     onClick = { tabIndex = 1 },
                     text = { Text(stringResource(R.string.transfer_receive_tab)) },
                 )
+                Tab(
+                    selected = tabIndex == 2,
+                    onClick = { tabIndex = 2 },
+                    text = { Text("Stream") },
+                )
             }
 
-            if (tabIndex == 0) {
-                SendTab(state = state, viewModel = viewModel)
-            } else {
-                ReceiveTab(state = state, viewModel = viewModel)
+            when (tabIndex) {
+                0 -> SendTab(state = state, viewModel = viewModel)
+                1 -> ReceiveTab(state = state, viewModel = viewModel)
+                else -> StreamTab(onPlayStream = onPlayStream)
             }
+        }
+    }
+}
+
+@Composable
+private fun StreamTab(onPlayStream: (url: String, title: String) -> Unit) {
+    var url by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+    ) {
+        Icon(
+            Icons.Filled.Language,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        Text(
+            "Play a direct video URL from a network share, camera, or streaming link — no download needed.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        OutlinedTextField(
+            value = url,
+            onValueChange = { url = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            placeholder = { Text("https://example.com/video.mp4") },
+            singleLine = true,
+        )
+        Button(
+            onClick = { onPlayStream(url.trim(), url.trim().substringAfterLast('/').ifBlank { "Network stream" }) },
+            enabled = url.isNotBlank(),
+            modifier = Modifier.padding(top = 16.dp),
+        ) {
+            Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+            Text("Play")
         }
     }
 }

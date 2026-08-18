@@ -1,5 +1,6 @@
 package com.rugplayer.app.ui.library
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rugplayer.app.data.db.PlaybackPositionDao
@@ -19,18 +20,28 @@ enum class SortOption(val label: String) {
     SIZE("Size"),
 }
 
+enum class LibraryViewMode { FOLDERS, ALL_VIDEOS }
+
 data class LibraryVideoUi(
     val video: VideoItem,
     val progressFraction: Float,
     val lastPlayedAt: Long = 0,
 )
 
+data class FolderSummary(
+    val name: String,
+    val videoCount: Int,
+    val totalSizeBytes: Long,
+    val previewUri: Uri?,
+)
+
 data class LibraryUiState(
     val videos: List<LibraryVideoUi> = emptyList(),
     val continueWatching: List<LibraryVideoUi> = emptyList(),
+    val folders: List<FolderSummary> = emptyList(),
     val query: String = "",
     val sort: SortOption = SortOption.DATE_ADDED,
-    val groupByFolder: Boolean = false,
+    val viewMode: LibraryViewMode = LibraryViewMode.FOLDERS,
 )
 
 class LibraryViewModel(
@@ -40,15 +51,15 @@ class LibraryViewModel(
 
     private val query = MutableStateFlow("")
     private val sort = MutableStateFlow(SortOption.DATE_ADDED)
-    private val groupByFolder = MutableStateFlow(false)
+    private val viewMode = MutableStateFlow(LibraryViewMode.FOLDERS)
 
     val uiState: StateFlow<LibraryUiState> = combine(
         videoRepository.observeVideos(),
         positionDao.observeAll(),
         query,
         sort,
-        groupByFolder,
-    ) { videos, positions, q, sortOption, group ->
+        viewMode,
+    ) { videos, positions, q, sortOption, mode ->
         val positionByVideoId = positions.associateBy { it.videoId }
 
         val filtered = if (q.isBlank()) videos else videos.filter {
@@ -74,16 +85,29 @@ class LibraryViewModel(
             .filter { it.progressFraction in 0.02f..0.95f }
             .sortedByDescending { it.lastPlayedAt }
 
+        val folders = videos
+            .groupBy { it.folder }
+            .map { (name, videosInFolder) ->
+                FolderSummary(
+                    name = name,
+                    videoCount = videosInFolder.size,
+                    totalSizeBytes = videosInFolder.sumOf { it.sizeBytes },
+                    previewUri = videosInFolder.firstOrNull()?.uri,
+                )
+            }
+            .sortedBy { it.name.lowercase() }
+
         LibraryUiState(
             videos = uiVideos,
             continueWatching = continueWatching,
+            folders = folders,
             query = q,
             sort = sortOption,
-            groupByFolder = group,
+            viewMode = mode,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LibraryUiState())
 
     fun setQuery(value: String) = query.update { value }
     fun setSort(value: SortOption) = sort.update { value }
-    fun setGroupByFolder(value: Boolean) = groupByFolder.update { value }
+    fun setViewMode(value: LibraryViewMode) = viewMode.update { value }
 }
