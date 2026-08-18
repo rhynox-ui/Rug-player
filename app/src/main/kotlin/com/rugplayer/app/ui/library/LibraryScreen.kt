@@ -48,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -59,10 +60,14 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.shouldShowRationale
 import com.rugplayer.app.AppGraph
 import com.rugplayer.app.R
+import com.rugplayer.app.data.model.VideoItem
 import com.rugplayer.app.ui.components.SelectionTopBar
+import com.rugplayer.app.ui.components.VideoActionSheet
 import com.rugplayer.app.ui.components.VideoListRow
 import com.rugplayer.app.ui.components.VideoThumbnailCard
 import com.rugplayer.app.ui.components.rememberVideoDeleter
+import com.rugplayer.app.ui.components.rememberVideoRenamer
+import com.rugplayer.app.ui.components.shareVideo
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -156,12 +161,26 @@ private fun LibraryContent(
     onOpenFolder: (String) -> Unit,
     onOpenStatusSaver: () -> Unit,
 ) {
+    val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
     var sortMenuOpen by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     val selectionMode = selectedIds.isNotEmpty()
     val deleteVideos = rememberVideoDeleter { selectedIds = emptySet() }
+    val renameVideo = rememberVideoRenamer {}
     val showingFlatList = state.query.isNotBlank() || state.viewMode == LibraryViewMode.ALL_VIDEOS
+
+    var actionSheetVideo by remember { mutableStateOf<VideoItem?>(null) }
+    actionSheetVideo?.let { video ->
+        VideoActionSheet(
+            video = video,
+            onDismiss = { actionSheetVideo = null },
+            onShare = { shareVideo(context, video) },
+            onRename = { newName -> renameVideo(video, newName) },
+            onSelect = { selectedIds = setOf(video.id) },
+            onDelete = { deleteVideos(listOf(video)) },
+        )
+    }
 
     var folderPendingDelete by remember { mutableStateOf<FolderSummary?>(null) }
     val deleteFolderVideos = rememberVideoDeleter { folderPendingDelete = null }
@@ -282,6 +301,7 @@ private fun LibraryContent(
                     selectionMode = selectionMode,
                     onOpenVideo = onOpenVideo,
                     onToggleSelect = { id -> selectedIds = toggleSelection(selectedIds, id) },
+                    onLongPress = { actionSheetVideo = it },
                 )
             } else {
                 FoldersList(
@@ -345,6 +365,7 @@ private fun AllVideosGrid(
     selectionMode: Boolean,
     onOpenVideo: (Long) -> Unit,
     onToggleSelect: (Long) -> Unit,
+    onLongPress: (VideoItem) -> Unit,
 ) {
     if (state.query.isNotBlank()) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -357,7 +378,7 @@ private fun AllVideosGrid(
                     onClick = {
                         if (selectionMode) onToggleSelect(item.video.id) else onOpenVideo(item.video.id)
                     },
-                    onLongClick = { onToggleSelect(item.video.id) },
+                    onLongClick = { onLongPress(item.video) },
                 )
             }
         }
@@ -373,9 +394,11 @@ private fun AllVideosGrid(
                 VideoThumbnailCard(
                     video = item.video,
                     progressFraction = item.progressFraction,
+                    selected = item.video.id in selectedIds,
                     onClick = {
                         if (selectionMode) onToggleSelect(item.video.id) else onOpenVideo(item.video.id)
                     },
+                    onLongClick = { onLongPress(item.video) },
                 )
             }
         }

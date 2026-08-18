@@ -1,7 +1,8 @@
 package com.rugplayer.app.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -29,15 +31,18 @@ import coil.request.videoFrameMillis
 import androidx.compose.ui.platform.LocalContext
 import com.rugplayer.app.data.model.VideoItem
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VideoThumbnailCard(
     video: VideoItem,
     progressFraction: Float,
+    selected: Boolean = false,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    Column(modifier = modifier.clickable(onClick = onClick)) {
+    Column(modifier = modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -88,6 +93,17 @@ fun VideoThumbnailCard(
                         .height(3.dp),
                     trackColor = Color.White.copy(alpha = 0.25f),
                 )
+            }
+
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.45f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = "Selected", tint = Color.White)
+                }
             }
         }
 

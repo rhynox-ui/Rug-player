@@ -19,13 +19,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.rugplayer.app.AppGraph
+import com.rugplayer.app.data.model.VideoItem
 import com.rugplayer.app.ui.components.SelectionTopBar
+import com.rugplayer.app.ui.components.VideoActionSheet
 import com.rugplayer.app.ui.components.VideoListRow
 import com.rugplayer.app.ui.components.rememberVideoDeleter
+import com.rugplayer.app.ui.components.rememberVideoRenamer
+import com.rugplayer.app.ui.components.shareVideo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,11 +45,25 @@ fun FolderVideosScreen(
             initializer { FolderVideosViewModel(folderName, graph.videoRepository, graph.playbackPositionDao) }
         },
     )
+    val context = LocalContext.current
     val videos by viewModel.videos.collectAsState()
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     val selectionMode = selectedIds.isNotEmpty()
 
     val deleteVideos = rememberVideoDeleter { selectedIds = emptySet() }
+    val renameVideo = rememberVideoRenamer {}
+
+    var actionSheetVideo by remember { mutableStateOf<VideoItem?>(null) }
+    actionSheetVideo?.let { video ->
+        VideoActionSheet(
+            video = video,
+            onDismiss = { actionSheetVideo = null },
+            onShare = { shareVideo(context, video) },
+            onRename = { newName -> renameVideo(video, newName) },
+            onSelect = { selectedIds = setOf(video.id) },
+            onDelete = { deleteVideos(listOf(video)) },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -85,7 +104,7 @@ fun FolderVideosScreen(
                             onOpenVideo(item.video.id)
                         }
                     },
-                    onLongClick = { selectedIds = toggleSelection(selectedIds, item.video.id) },
+                    onLongClick = { actionSheetVideo = item.video },
                 )
             }
         }
